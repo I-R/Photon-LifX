@@ -1,15 +1,47 @@
 
+// Added in for Particle
+typedef uint8_t byte;
+typedef uint16_t word;
+#define lowByte(w) ((uint8_t) ((w) & 0xff))
+#define highByte(w) ((uint8_t) ((w) >> 8))
+#define word(b1,b2)  (uint16_t(uint8_t(b1)<<8|uint8_t(b2)))
+
 struct LifxPacket {
+  /* FRAME */
+  /* size */
   uint16_t size; //little endian
+  /*
+    origin[2] : Message origin indicator - must be 0,
+    tagged[1] : Broadcast (0) or unicast (1) - set target/bubAddress,
+    addressable[1] : Message includes a target address: must be 1
+    protocol[12] - must be 1024
+    */
   uint16_t protocol; //little endian
-  uint32_t reserved1;
-  byte bulbAddress[6];
+  /*
+    source[32] : Unique identifier, set by client, used by response
+    */
+  byte source[4];
+
+  /* FRAME Address */
+  /* target[64]: 6-byte MAC, left padded or zero(0)-> all devices */
+  byte target[6];
   uint16_t reserved2;
+  /* reserved[48] - must be zero */
   byte site[6];
-  uint16_t reserved3;
-  uint64_t timestamp;
-  uint16_t packet_type; //little endian
-  uint16_t reserved4;
+  /* reserved[6]
+  ack_required[1] : bool - ack required
+  res_reqiored[1] : bool - response required
+  sequence[8]     : byte - wrap around message sequence number
+  */
+  byte reserved3;
+  byte sequence;
+  /* PROTOCOL HEADER */
+  /* reserved[64] : reserved - must be 0*/
+  byte reserved4[8];
+  /* type[16]     : Message type */
+  int16_t packet_type; //little endian
+  /* reserved[16] */
+  uint16_t reserved5;
 
   byte data[128];
   int data_size;
@@ -73,17 +105,10 @@ const byte MESH_FIRMWARE_STATE = 0x0f;
 #define EEPROM_BULB_TAGS_START 32 // 8 bytes long
 #define EEPROM_BULB_TAG_LABELS_START 40 // 32 bytes long
 // future data for EEPROM will start at 72...
+#define EEPROM_BULB_CONFIG 72 // One config Block takes 72 Bytes
 
 #define EEPROM_CONFIG "AL1" // 3 byte identifier for this sketch's EEPROM settings
 #define EEPROM_CONFIG_START 253 // store EEPROM_CONFIG at the end of EEPROM
 
 // helpers
 #define SPACE " "
-
-
-// Added in for Particle
-typedef uint8_t byte;
-typedef uint16_t word;
-#define lowByte(w) ((uint8_t) ((w) & 0xff))
-#define highByte(w) ((uint8_t) ((w) >> 8))
-#define word(b1,b2)  (uint16_t(uint8_t(b1)<<8|uint8_t(b2)))
