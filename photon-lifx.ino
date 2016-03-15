@@ -10,7 +10,7 @@
 
  Set the following variables below to suit your Arduino and network
  environment:
- - mac (unique mac address for your arduino)
+ - mac[device] (unique mac address for your arduino)
  - redPin (PWM pin for RED)
  - greenPin  (PWM pin for GREEN)
  - bluePin  (PWM pin for BLUE)
@@ -23,13 +23,6 @@
  slightly to support powering down the LED
  */
 
-
-/*#include <SPI.h>
-#include <Ethernet.h>
-#include <EthernetServer.h>
-#include <EthernetUdp.h>
-#include <EEPROM.h>   */
-
 #include "lifx.h"
 #include "RGBMoodLifx.h"
 #include "color.h"
@@ -37,26 +30,30 @@
 
 
 // Function declaration
-void printLifxPacket(LifxPacket &pkt);
-unsigned int sendTCPPacket(LifxPacket &pkt);
-unsigned int sendUDPPacket(LifxPacket &pkt);
-unsigned int sendUDPxPacket(LifxPacket &pkt);
+void printLifxPacket(LifxPacket &pkt, unsigned int device);
 
-void sendPacket(LifxPacket &pkt);
-void sendXPacket(LifxPacket &pkt);
+unsigned int sendUDPPacket(LifxPacket &pkt, unsigned int device, IPAddress &remote_addr, int remote_port);
 
-void handleRequest(LifxPacket &request);
-void handleRequestX(LifxPacket &request);
+void sendPacket(LifxPacket &pkt, unsigned int device, IPAddress &remote_addr, int remote_port);
+
 void processRequest(byte *packetBuffer, int packetSize, LifxPacket &request);
+
+void handleRequest(LifxPacket &request, unsigned int device);
+
 void setLight();
 
 // set to 1 to output debug messages (including packet dumps) to serial (38400 baud)
 const boolean DEBUG = 1;
 
+// Number of Bulbs presented by this scetch
+const unsigned int LifxBulbNum = 2;
+
 // Enter a MAC address and IP address for your controller below.
 // The IP address will be dependent on your local network:
-byte mac[] = {
-  0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0xAD };
+byte mac[LifxBulbNum][6] = {
+  {0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0xAD},
+  {0xCE, 0xAC, 0xCE, 0xAC, 0xCE, 0xAC}};
+
 byte site_mac[] = {
   0x4c, 0x49, 0x46, 0x58, 0x56, 0x32 }; // spells out "LIFXV2" - version 2 of the app changes the site address to this...
 
@@ -65,7 +62,6 @@ const int redPin = 4;
 const int greenPin = 5;
 const int bluePin = 6;
 
-const int LifxBulbNum = 2;
 // label (name) for this bulb
 char bulbLabel[LifxBulbNum][LifxBulbLabelLength] = {"Photon Bulb 1","Photon Bulb 2"};
 
@@ -86,11 +82,7 @@ long dim = 0;
 EthernetServer TcpServer = EthernetServer(LifxPort);
 EthernetClient Client;*/
 
-UDP Udp;
-UDP UdpX;
-
-TCPServer Server = TCPServer(LifxPort);
-TCPClient Client;
+UDP Udp[LifxBulbNum];
 
 RGBMoodLifx LIFXBulb(redPin, greenPin, bluePin);
 
@@ -110,21 +102,14 @@ void setup() {
   Serial.begin(38400);
   Serial.println(F("LIFX bulb emulator for Arduino starting up..."));
 
-  /*// start the Ethernet - using DHCP so keep trying until we get an address
-  while(Ethernet.begin(mac) == 0) {
-    Serial.println(F("Failed to get DHCP address, trying again..."));
-    delay(1000);
-  }*/
-
-  Serial.print(F("IP address for this bulb: "));
+    Serial.print(F("IP address for this bulb: "));
   localIP = WiFi.localIP();
   Serial.println( localIP );
 
   // set up a UDP and TCP port ready for incoming
-  Udp.begin(LifxPort);
-  UdpX.begin(LifxPort+1);
-
-  Server.begin();
+  for(int i=0; i < LifxBulbNum; i++) {
+    Udp[i].begin(LifxPort+i);
+  };
 
   // set up the LED pins
   /*
@@ -239,116 +224,48 @@ void loop() {
   // buffers for receiving and sending data
   byte PacketBuffer[128]; //buffer to hold incoming packet,
 
-  Client = Server.available();
-
-  if (Client == true) {
-    PacketsRX++;
-    // read incoming data
-    int packetSize = 0;
-    while (Client.available()) {
-      byte b = Client.read();
-      PacketBuffer[packetSize] = b;
-      packetSize++;
-    }
-
-    if(DEBUG) {
-      Serial.print(F("-TCP "));
-      for(int i = 0; i < LifxPacketSize; i++) {
-        Serial.print(PacketBuffer[i], HEX);
-        Serial.print(SPACE);
-      }
-
-      for(int i = LifxPacketSize; i < packetSize; i++) {
-        Serial.print(PacketBuffer[i], HEX);
-        Serial.print(SPACE);
-      }
-      Serial.println();
-    }
-
-    // push the data into the LifxPacket structure
-    LifxPacket request;
-    processRequest(PacketBuffer, packetSize, request);
-
-    //respond to the request
-    handleRequest(request);
-  }
   // if there's UDP data available, read a packet
-  int packetSize = Udp.parsePacket();
-  if(packetSize) {
-    Udp.read(PacketBuffer, 128);
-    PacketsRX++;
+  for( int j=0; j<LifxBulbNum; j++){
+    int packetSize = Udp[j].parsePacket();
+    if(packetSize) {
+      Udp[j].read(PacketBuffer, 128);
+      PacketsRX++;
 
-    if(DEBUG) {
-      Serial.print(F("-UDP (<-"));
-      IPAddress remote_addr = Udp.remoteIP();
-      for ( int i=0; i < 3; i++) {
-        Serial.print(remote_addr[i]);
-        Serial.print(F("."));
+      if(DEBUG) {
+        Serial.print(j,DEC);
+        Serial.print(F(":-UDP (<-"));
+        IPAddress remote_addr = Udp[j].remoteIP();
+        for ( int i=0; i < 3; i++) {
+          Serial.print(remote_addr[i]);
+          Serial.print(F("."));
+        }
+        Serial.print(remote_addr[3]);
+
+        Serial.print(F(":"));
+        Serial.print(Udp[j].remotePort());
+        Serial.print(F(") "));
+
+        for(int i = 0; i < LifxPacketSize; i++) {
+          Serial.print(PacketBuffer[i], HEX);
+          Serial.print(SPACE);
+        }
+
+          for(int i = LifxPacketSize; i < packetSize; i++) {
+          Serial.print(PacketBuffer[i], HEX);
+          Serial.print(SPACE);
+        }
+        Serial.println();
       }
-      Serial.print(remote_addr[3]);
 
-      Serial.print(F(":"));
-      Serial.print(Udp.remotePort());
-      Serial.print(F(") "));
+      // push the data into the LifxPacket structure
+      LifxPacket request;
+      processRequest(PacketBuffer, sizeof(PacketBuffer), request);
 
-      for(int i = 0; i < LifxPacketSize; i++) {
-        Serial.print(PacketBuffer[i], HEX);
-        Serial.print(SPACE);
-      }
-
-      for(int i = LifxPacketSize; i < packetSize; i++) {
-        Serial.print(PacketBuffer[i], HEX);
-        Serial.print(SPACE);
-      }
-      Serial.println();
+      //respond to the request
+      handleRequest(request, j);
     }
-
-    // push the data into the LifxPacket structure
-    LifxPacket request;
-    processRequest(PacketBuffer, sizeof(PacketBuffer), request);
-
-    //respond to the request
-    handleRequest(request);
   }
 
-// if there's UDP data available, read a packet
-  packetSize = UdpX.parsePacket();
-  if(packetSize) {
-    UdpX.read(PacketBuffer, 128);
-    PacketsRX++;
-
-    if(DEBUG) {
-      Serial.print(F("-UDPx (<-"));
-      IPAddress remote_addr = UdpX.remoteIP();
-      for ( int i=0; i < 3; i++) {
-        Serial.print(remote_addr[i]);
-        Serial.print(F("."));
-      }
-      Serial.print(remote_addr[3]);
-
-      Serial.print(F(":"));
-      Serial.print(UdpX.remotePort());
-      Serial.print(F(") "));
-
-      for(int i = 0; i < LifxPacketSize; i++) {
-        Serial.print(PacketBuffer[i], HEX);
-        Serial.print(SPACE);
-      }
-
-      for(int i = LifxPacketSize; i < packetSize; i++) {
-        Serial.print(PacketBuffer[i], HEX);
-        Serial.print(SPACE);
-      }
-      Serial.println();
-      Serial.println(packetSize,DEC);
-    }
-    // push the data into the LifxPacket structure
-    LifxPacket request;
-    processRequest(PacketBuffer, sizeof(PacketBuffer), request);
-
-    //respond to the request
-    handleRequestX(request);
-  }
 
   //Ethernet.maintain();
 
@@ -400,311 +317,7 @@ void processRequest(byte *packetBuffer, int packetSize, LifxPacket &request) {
   request.data_size = i;
 }
 
-void handleRequestX(LifxPacket &request) {
-  if(DEBUG) {
-    Serial.print(F("  X rec packet type "));
-    Serial.println(request.packet_type, DEC);
-  }
-
-  LifxPacket response;
-  switch(request.packet_type) {
-
-  case GET_PAN_GATEWAY:
-    {
-      // we are a gateway, so respond to this
-
-      // respond with the UDP port
-      response.packet_type = PAN_GATEWAY;
-      response.protocol = LifxProtocol_AllBulbsResponse;
-      byte UDPdata[] = {
-        SERVICE_UDP, //UDP
-        lowByte(LifxPort),
-        highByte(LifxPort),
-        0x00,
-        0x00
-      };
-      memcpy(response.data, UDPdata, sizeof(UDPdata));
-      response.data_size = sizeof(UDPdata);
-      sendXPacket(response);
-
-
-      // respond with the TCP port details
-      response.packet_type = PAN_GATEWAY;
-      response.protocol = LifxProtocol_AllBulbsResponse;
-      byte TCPdata[] = {
-        SERVICE_TCP, //TCP
-        lowByte(LifxPort),
-        highByte(LifxPort),
-        0x00,
-        0x00
-      };
-
-      memcpy(response.data, TCPdata, sizeof(TCPdata));
-      response.data_size = sizeof(TCPdata);
-      sendXPacket(response);
-
-    }
-    break;
-
-
-  case SET_LIGHT_STATE:
-    {
-      // set the light colors
-      hue = word(request.data[2], request.data[1]);
-      sat = word(request.data[4], request.data[3]);
-      bri = word(request.data[6], request.data[5]);
-      kel = word(request.data[8], request.data[7]);
-
-      setLight();
-    }
-    break;
-
-
-  case GET_LIGHT_STATE:
-    {
-      // send the light's state
-      response.packet_type = LIGHT_STATUS;
-      response.protocol = LifxProtocol_AllBulbsResponse;
-      byte StateData[] = {
-        lowByte(hue),  //hue
-        highByte(hue), //hue
-        lowByte(sat),  //sat
-        highByte(sat), //sat
-        lowByte(bri),  //bri
-        highByte(bri), //bri
-        lowByte(kel),  //kel
-        highByte(kel), //kel
-        lowByte(dim),  //dim
-        highByte(dim), //dim
-        lowByte(power_status),  //power status
-        highByte(power_status), //power status
-        // label
-        lowByte(bulbLabel[1][0]),
-        lowByte(bulbLabel[1][1]),
-        lowByte(bulbLabel[1][2]),
-        lowByte(bulbLabel[1][3]),
-        lowByte(bulbLabel[1][4]),
-        lowByte(bulbLabel[1][5]),
-        lowByte(bulbLabel[1][6]),
-        lowByte(bulbLabel[1][7]),
-        lowByte(bulbLabel[1][8]),
-        lowByte(bulbLabel[1][9]),
-        lowByte(bulbLabel[1][10]),
-        lowByte(bulbLabel[1][11]),
-        lowByte(bulbLabel[1][12]),
-        lowByte(bulbLabel[1][13]),
-        lowByte(bulbLabel[1][14]),
-        lowByte(bulbLabel[1][15]),
-        lowByte(bulbLabel[1][16]),
-        lowByte(bulbLabel[1][17]),
-        lowByte(bulbLabel[1][18]),
-        lowByte(bulbLabel[1][19]),
-        lowByte(bulbLabel[1][20]),
-        lowByte(bulbLabel[1][21]),
-        lowByte(bulbLabel[1][22]),
-        lowByte(bulbLabel[1][23]),
-        lowByte(bulbLabel[1][24]),
-        lowByte(bulbLabel[1][25]),
-        lowByte(bulbLabel[1][26]),
-        lowByte(bulbLabel[1][27]),
-        lowByte(bulbLabel[1][28]),
-        lowByte(bulbLabel[1][29]),
-        lowByte(bulbLabel[1][30]),
-        lowByte(bulbLabel[1][31]),
-        //tags
-        lowByte(bulbTags[1][0]),
-        lowByte(bulbTags[1][1]),
-        lowByte(bulbTags[1][2]),
-        lowByte(bulbTags[1][3]),
-        lowByte(bulbTags[1][4]),
-        lowByte(bulbTags[1][5]),
-        lowByte(bulbTags[1][6]),
-        lowByte(bulbTags[1][7])
-        };
-
-      memcpy(response.data, StateData, sizeof(StateData));
-      response.data_size = sizeof(StateData);
-      sendXPacket(response);
-    }
-    break;
-
-
-  case SET_POWER_STATE:
-  case GET_POWER_STATE:
-    {
-      // set if we are setting
-      if(request.packet_type == SET_POWER_STATE) {
-        power_status = word(request.data[1], request.data[0]);
-        setLight();
-      }
-
-      // respond to both get and set commands
-      response.packet_type = POWER_STATE;
-      response.protocol = LifxProtocol_AllBulbsResponse;
-      byte PowerData[] = {
-        lowByte(power_status),
-        highByte(power_status)
-        };
-
-      memcpy(response.data, PowerData, sizeof(PowerData));
-      response.data_size = sizeof(PowerData);
-      sendXPacket(response);
-    }
-    break;
-
-
-  case SET_BULB_LABEL:
-  case GET_BULB_LABEL:
-    {
-      // set if we are setting
-      if(request.packet_type == SET_BULB_LABEL) {
-        for(int i = 0; i < LifxBulbLabelLength; i++) {
-          if(bulbLabel[1][i] != request.data[i]) {
-            bulbLabel[1][i] = request.data[i];
-            EEPROM.write(EEPROM_BULB_LABEL_START+i+EEPROM_BULB_CONFIG, request.data[i]);
-          }
-        }
-      }
-
-      // respond to both get and set commands
-      response.packet_type = BULB_LABEL;
-      response.protocol = LifxProtocol_AllBulbsResponse;
-      memcpy(response.data, bulbLabel[1], sizeof(bulbLabel));
-      response.data_size = sizeof(bulbLabel);
-      sendXPacket(response);
-    }
-    break;
-
-
-  case SET_BULB_TAGS:
-  case GET_BULB_TAGS:
-    {
-      // set if we are setting
-      if(request.packet_type == SET_BULB_TAGS) {
-        for(int i = 0; i < LifxBulbTagsLength; i++) {
-          if(bulbTags[1][i] != request.data[i]) {
-            bulbTags[1][i] = lowByte(request.data[i]);
-            EEPROM.write(EEPROM_BULB_TAGS_START+i+EEPROM_BULB_CONFIG, request.data[i]);
-          }
-        }
-      }
-
-      // respond to both get and set commands
-      response.packet_type = BULB_TAGS;
-      response.protocol = LifxProtocol_AllBulbsResponse;
-      memcpy(response.data, bulbTags, sizeof(bulbTags));
-      response.data_size = sizeof(bulbTags);
-      sendXPacket(response);
-    }
-    break;
-
-
-  case SET_BULB_TAG_LABELS:
-  case GET_BULB_TAG_LABELS:
-    {
-      // set if we are setting
-      if(request.packet_type == SET_BULB_TAG_LABELS) {
-        for(int i = 0; i < LifxBulbTagLabelsLength; i++) {
-          if(bulbTagLabels[1][i] != request.data[i]) {
-            bulbTagLabels[1][i] = request.data[i];
-            EEPROM.write(EEPROM_BULB_TAG_LABELS_START+i+EEPROM_BULB_CONFIG, request.data[i]);
-          }
-        }
-      }
-
-      // respond to both get and set commands
-      response.packet_type = BULB_TAG_LABELS;
-      response.protocol = LifxProtocol_AllBulbsResponse;
-      memcpy(response.data, bulbTagLabels, sizeof(bulbTagLabels));
-      response.data_size = sizeof(bulbTagLabels);
-      sendXPacket(response);
-    }
-    break;
-
-
-  case GET_VERSION_STATE:
-    {
-      // respond to get command
-      response.packet_type = VERSION_STATE;
-      response.protocol = LifxProtocol_AllBulbsResponse;
-      byte VersionData[] = {
-        lowByte(LifxBulbVendor),
-        highByte(LifxBulbVendor),
-        0x00,
-        0x00,
-        lowByte(LifxBulbProduct),
-        highByte(LifxBulbProduct),
-        0x00,
-        0x00,
-        lowByte(LifxBulbVersion),
-        highByte(LifxBulbVersion),
-        0x00,
-        0x00
-        };
-
-      memcpy(response.data, VersionData, sizeof(VersionData));
-      response.data_size = sizeof(VersionData);
-      sendXPacket(response);
-
-    }
-    break;
-
-
-  case GET_MESH_FIRMWARE_STATE:
-    {
-      // respond to get command
-      response.packet_type = MESH_FIRMWARE_STATE;
-      response.protocol = LifxProtocol_AllBulbsResponse;
-      // reserved4 data comes from observed packet from a LIFX v1.5 bulb
-      byte MeshVersionData[] = {
-        0x00, 0x2e, 0xc3, 0x8b, 0xef, 0x30, 0x86, 0x13, //build timestamp
-        0xe0, 0x25, 0x76, 0x45, 0x69, 0x81, 0x8b, 0x13, //install timestamp
-        lowByte(LifxFirmwareVersionMinor),
-        highByte(LifxFirmwareVersionMinor),
-        lowByte(LifxFirmwareVersionMajor),
-        highByte(LifxFirmwareVersionMajor)
-        };
-
-      memcpy(response.data, MeshVersionData, sizeof(MeshVersionData));
-      response.data_size = sizeof(MeshVersionData);
-      sendXPacket(response);
-    }
-    break;
-
-
-  case GET_WIFI_FIRMWARE_STATE:
-    {
-      // respond to get command
-      response.packet_type = WIFI_FIRMWARE_STATE;
-      response.protocol = LifxProtocol_AllBulbsResponse;
-      // timestamp data comes from observed packet from a LIFX v1.5 bulb
-      byte WifiVersionData[] = {
-        0x00, 0xc8, 0x5e, 0x31, 0x99, 0x51, 0x86, 0x13, //build timestamp
-        0xc0, 0x0c, 0x07, 0x00, 0x48, 0x46, 0xd9, 0x43, //install timestamp
-        lowByte(LifxFirmwareVersionMinor),
-        highByte(LifxFirmwareVersionMinor),
-        lowByte(LifxFirmwareVersionMajor),
-        highByte(LifxFirmwareVersionMajor)
-        };
-
-      memcpy(response.data, WifiVersionData, sizeof(WifiVersionData));
-      response.data_size = sizeof(WifiVersionData);
-      sendXPacket(response);
-    }
-    break;
-
-
-  default:
-    {
-      if(DEBUG) {
-        Serial.println(F("  Unknown packet type, ignoring"));
-      }
-    }
-    break;
-  }
-}
-
-void handleRequest(LifxPacket &request) {
+void handleRequest(LifxPacket &request, unsigned int device) {
   if(DEBUG) {
     Serial.print(F("  Received packet type "));
     Serial.println(request.packet_type, DEC);
@@ -721,56 +334,33 @@ void handleRequest(LifxPacket &request) {
   memcpy(response.source,request.source,4);
   response.protocol = request.protocol;
 
+  IPAddress remote_addr(Udp[device].remoteIP());
+  int       remote_port = Udp[device].remotePort();
   switch(request.packet_type) {
 
   case GET_PAN_GATEWAY:
     {
       // we are a gateway, so respond to this
+      for ( int i = 0 ; i < LifxBulbNum; i++ ) {
+        // respond with the UDP port
+        response.packet_type = PAN_GATEWAY;
+        response.protocol = LifxProtocol_AllBulbsResponse;
+        byte UDPdata[] = {
+          SERVICE_UDP, //UDP
+          lowByte(LifxPort+i),
+          highByte(LifxPort+i),
+          0x00,
+          0x00
+        };
 
-      // respond with the UDP port
-      response.packet_type = PAN_GATEWAY;
-      response.protocol = LifxProtocol_AllBulbsResponse;
-      byte UDPdata[] = {
-        SERVICE_UDP, //UDP
-        lowByte(LifxPort),
-        highByte(LifxPort),
-        0x00,
-        0x00
-      };
+        memcpy(response.data, UDPdata, sizeof(UDPdata));
+        response.data_size = sizeof(UDPdata);
+        sendPacket(response, i, remote_addr, remote_port);
 
-      memcpy(response.data, UDPdata, sizeof(UDPdata));
-      response.data_size = sizeof(UDPdata);
-      sendPacket(response);
-
-      /*
-      // respond with the UDP port
-      response.packet_type = PAN_GATEWAY;
-      response.protocol = LifxProtocol_AllBulbsResponse;
-      UDPdata[1] = lowByte(LifxPort+1);
-      UDPdata[2] = highByte(LifxPort+1);
-
-      memcpy(response.data, UDPdata, sizeof(UDPdata));
-      response.data_size = sizeof(UDPdata);
-      sendPacket(response);
-
-
-      delay(100);
-      // respond with the TCP port details
-      response.packet_type = PAN_GATEWAY;
-      response.protocol = LifxProtocol_AllBulbsResponse;
-      byte TCPdata[] = {
-        SERVICE_TCP, //TCP
-        lowByte(LifxPort),
-        highByte(LifxPort),
-        0x00,
-        0x00
-      };
-
-      memcpy(response.data, TCPdata, sizeof(TCPdata));
-      response.data_size = sizeof(TCPdata);
-      sendPacket(response);
-      */
+        delay( 100 );
+      }
     }
+
     break;
 
 
@@ -806,52 +396,52 @@ void handleRequest(LifxPacket &request) {
         lowByte(power_status),  //power status
         highByte(power_status), //power status
         // label
-        lowByte(bulbLabel[0][0]),
-        lowByte(bulbLabel[0][1]),
-        lowByte(bulbLabel[0][2]),
-        lowByte(bulbLabel[0][3]),
-        lowByte(bulbLabel[0][4]),
-        lowByte(bulbLabel[0][5]),
-        lowByte(bulbLabel[0][6]),
-        lowByte(bulbLabel[0][7]),
-        lowByte(bulbLabel[0][8]),
-        lowByte(bulbLabel[0][9]),
-        lowByte(bulbLabel[0][10]),
-        lowByte(bulbLabel[0][11]),
-        lowByte(bulbLabel[0][12]),
-        lowByte(bulbLabel[0][13]),
-        lowByte(bulbLabel[0][14]),
-        lowByte(bulbLabel[0][15]),
-        lowByte(bulbLabel[0][16]),
-        lowByte(bulbLabel[0][17]),
-        lowByte(bulbLabel[0][18]),
-        lowByte(bulbLabel[0][19]),
-        lowByte(bulbLabel[0][20]),
-        lowByte(bulbLabel[0][21]),
-        lowByte(bulbLabel[0][22]),
-        lowByte(bulbLabel[0][23]),
-        lowByte(bulbLabel[0][24]),
-        lowByte(bulbLabel[0][25]),
-        lowByte(bulbLabel[0][26]),
-        lowByte(bulbLabel[0][27]),
-        lowByte(bulbLabel[0][28]),
-        lowByte(bulbLabel[0][29]),
-        lowByte(bulbLabel[0][30]),
-        lowByte(bulbLabel[0][31]),
+        lowByte(bulbLabel[device][0]),
+        lowByte(bulbLabel[device][1]),
+        lowByte(bulbLabel[device][2]),
+        lowByte(bulbLabel[device][3]),
+        lowByte(bulbLabel[device][4]),
+        lowByte(bulbLabel[device][5]),
+        lowByte(bulbLabel[device][6]),
+        lowByte(bulbLabel[device][7]),
+        lowByte(bulbLabel[device][8]),
+        lowByte(bulbLabel[device][9]),
+        lowByte(bulbLabel[device][10]),
+        lowByte(bulbLabel[device][11]),
+        lowByte(bulbLabel[device][12]),
+        lowByte(bulbLabel[device][13]),
+        lowByte(bulbLabel[device][14]),
+        lowByte(bulbLabel[device][15]),
+        lowByte(bulbLabel[device][16]),
+        lowByte(bulbLabel[device][17]),
+        lowByte(bulbLabel[device][18]),
+        lowByte(bulbLabel[device][19]),
+        lowByte(bulbLabel[device][20]),
+        lowByte(bulbLabel[device][21]),
+        lowByte(bulbLabel[device][22]),
+        lowByte(bulbLabel[device][23]),
+        lowByte(bulbLabel[device][24]),
+        lowByte(bulbLabel[device][25]),
+        lowByte(bulbLabel[device][26]),
+        lowByte(bulbLabel[device][27]),
+        lowByte(bulbLabel[device][28]),
+        lowByte(bulbLabel[device][29]),
+        lowByte(bulbLabel[device][30]),
+        lowByte(bulbLabel[device][31]),
         //tags
-        lowByte(bulbTags[0][0]),
-        lowByte(bulbTags[0][1]),
-        lowByte(bulbTags[0][2]),
-        lowByte(bulbTags[0][3]),
-        lowByte(bulbTags[0][4]),
-        lowByte(bulbTags[0][5]),
-        lowByte(bulbTags[0][6]),
-        lowByte(bulbTags[0][7])
+        lowByte(bulbTags[device][0]),
+        lowByte(bulbTags[device][1]),
+        lowByte(bulbTags[device][2]),
+        lowByte(bulbTags[device][3]),
+        lowByte(bulbTags[device][4]),
+        lowByte(bulbTags[device][5]),
+        lowByte(bulbTags[device][6]),
+        lowByte(bulbTags[device][7])
         };
 
       memcpy(response.data, StateData, sizeof(StateData));
       response.data_size = sizeof(StateData);
-      sendPacket(response);
+      sendPacket(response, device, remote_addr, remote_port);
     }
     break;
 
@@ -875,7 +465,7 @@ void handleRequest(LifxPacket &request) {
 
       memcpy(response.data, PowerData, sizeof(PowerData));
       response.data_size = sizeof(PowerData);
-      sendPacket(response);
+      sendPacket(response, device, remote_addr, remote_port);
     }
     break;
 
@@ -886,8 +476,8 @@ void handleRequest(LifxPacket &request) {
       // set if we are setting
       if(request.packet_type == SET_BULB_LABEL) {
         for(int i = 0; i < LifxBulbLabelLength; i++) {
-          if(bulbLabel[0][i] != request.data[i]) {
-            bulbLabel[0][i] = request.data[i];
+          if(bulbLabel[device][i] != request.data[i]) {
+            bulbLabel[device][i] = request.data[i];
             EEPROM.write(EEPROM_BULB_LABEL_START+i, request.data[i]);
           }
         }
@@ -898,7 +488,7 @@ void handleRequest(LifxPacket &request) {
       response.protocol = LifxProtocol_AllBulbsResponse;
       memcpy(response.data, bulbLabel[0], LifxBulbLabelLength);
       response.data_size = LifxBulbLabelLength;
-      sendPacket(response);
+      sendPacket(response, device, remote_addr, remote_port);
     }
     break;
 
@@ -909,8 +499,8 @@ void handleRequest(LifxPacket &request) {
       // set if we are setting
       if(request.packet_type == SET_BULB_TAGS) {
         for(int i = 0; i < LifxBulbTagsLength; i++) {
-          if(bulbTags[0][i] != request.data[i]) {
-            bulbTags[0][i] = lowByte(request.data[i]);
+          if(bulbTags[device][i] != request.data[i]) {
+            bulbTags[device][i] = lowByte(request.data[i]);
             EEPROM.write(EEPROM_BULB_TAGS_START+i, request.data[i]);
           }
         }
@@ -921,7 +511,7 @@ void handleRequest(LifxPacket &request) {
       response.protocol = LifxProtocol_AllBulbsResponse;
       memcpy(response.data, bulbTags, sizeof(bulbTags));
       response.data_size = sizeof(bulbTags);
-      sendPacket(response);
+      sendPacket(response, device, remote_addr, remote_port);
     }
     break;
 
@@ -932,8 +522,8 @@ void handleRequest(LifxPacket &request) {
       // set if we are setting
       if(request.packet_type == SET_BULB_TAG_LABELS) {
         for(int i = 0; i < LifxBulbTagLabelsLength; i++) {
-          if(bulbTagLabels[0][i] != request.data[i]) {
-            bulbTagLabels[0][i] = request.data[i];
+          if(bulbTagLabels[device][i] != request.data[i]) {
+            bulbTagLabels[device][i] = request.data[i];
             EEPROM.write(EEPROM_BULB_TAG_LABELS_START+i, request.data[i]);
           }
         }
@@ -944,7 +534,7 @@ void handleRequest(LifxPacket &request) {
       response.protocol = LifxProtocol_AllBulbsResponse;
       memcpy(response.data, bulbTagLabels, sizeof(bulbTagLabels));
       response.data_size = sizeof(bulbTagLabels);
-      sendPacket(response);
+      sendPacket(response, device, remote_addr, remote_port);
     }
     break;
 
@@ -971,7 +561,7 @@ void handleRequest(LifxPacket &request) {
 
       memcpy(response.data, VersionData, sizeof(VersionData));
       response.data_size = sizeof(VersionData);
-      sendPacket(response);
+      sendPacket(response, device, remote_addr, remote_port);
 
       /*
       // respond again to get command (real bulbs respond twice, slightly diff data (see below)
@@ -994,7 +584,7 @@ void handleRequest(LifxPacket &request) {
 
       memcpy(response.data, VersionData2, sizeof(VersionData2));
       response.data_size = sizeof(VersionData2);
-      sendPacket(response);
+      sendPacket(response, device, remote_addr, remote_port);
       */
     }
     break;
@@ -1017,7 +607,7 @@ void handleRequest(LifxPacket &request) {
 
       memcpy(response.data, MeshVersionData, sizeof(MeshVersionData));
       response.data_size = sizeof(MeshVersionData);
-      sendPacket(response);
+      sendPacket(response, device, remote_addr, remote_port);
     }
     break;
 
@@ -1039,7 +629,7 @@ void handleRequest(LifxPacket &request) {
 
       memcpy(response.data, WifiVersionData, sizeof(WifiVersionData));
       response.data_size = sizeof(WifiVersionData);
-      sendPacket(response);
+      sendPacket(response, device, remote_addr, remote_port);
     }
     break;
 
@@ -1054,22 +644,21 @@ void handleRequest(LifxPacket &request) {
   }
 }
 
-void sendPacket(LifxPacket &pkt) {
-  sendUDPPacket(pkt);
+void sendPacket(LifxPacket &pkt, unsigned int device, IPAddress &remote_addr, int remote_port) {
+  unsigned int ret;
+  ret = sendUDPPacket(pkt, device, remote_addr, remote_port);
   /*
   if(Client.connected()) {
     sendTCPPacket(pkt);
   }
   */
+  Serial.print("Sent: ");
+  Serial.println( ret, DEC );
 }
 
-void sendXPacket(LifxPacket &pkt) {
-  sendUDPxPacket(pkt);
-}
-
-unsigned int sendUDPPacket(LifxPacket &pkt) {
+unsigned int sendUDPPacket(LifxPacket &pkt, unsigned int device, IPAddress &remote_addr, int remote_port) {
   // broadcast packet on local subnet
-  IPAddress remote_addr(Udp.remoteIP());
+  //IPAddress remote_addr(Udp[device].remoteIP());
   IPAddress broadcast_addr(remote_addr[0], remote_addr[1], remote_addr[2], 255);
 
   if(DEBUG) {
@@ -1081,246 +670,85 @@ unsigned int sendUDPPacket(LifxPacket &pkt) {
     Serial.print(remote_addr[3]);
 
     Serial.print(F(":"));
-    Serial.print(Udp.remotePort());
+    Serial.print(Udp[device].remotePort());
     Serial.print(F(") "));
-    printLifxPacket(pkt);
+    printLifxPacket(pkt, device);
     Serial.println();
   }
 
-  // Udp.beginPacket(broadcast_addr, Udp.remotePort());
-  Udp.beginPacket(remote_addr, Udp.remotePort());
+  // Udp[device].beginPacket(broadcast_addr, Udp[device].remotePort());
+  Udp[device].beginPacket(remote_addr, remote_port);
 
   // size
-  Udp.write(lowByte(LifxPacketSize + pkt.data_size));
-  Udp.write(highByte(LifxPacketSize + pkt.data_size));
+  Udp[device].write(lowByte(LifxPacketSize + pkt.data_size));
+  Udp[device].write(highByte(LifxPacketSize + pkt.data_size));
 
   // protocol
-  Udp.write(lowByte(pkt.protocol));
-  Udp.write(highByte(pkt.protocol));
+  Udp[device].write(lowByte(pkt.protocol));
+  Udp[device].write(highByte(pkt.protocol));
 
   // source
-  //Udp.write(pkt.source,4);
+  //Udp[device].write(pkt.source,4);
   for(int i = 0; i < sizeof(pkt.source); i++) {
-    Udp.write(lowByte(pkt.source[i]));
+    Udp[device].write(lowByte(pkt.source[i]));
   }
 
 /*
-  Udp.write(lowByte(0x00));
-  Udp.write(lowByte(0x00));
-  Udp.write(lowByte(0x00));
-  Udp.write(lowByte(0x00));
+  Udp[device].write(lowByte(0x00));
+  Udp[device].write(lowByte(0x00));
+  Udp[device].write(lowByte(0x00));
+  Udp[device].write(lowByte(0x00));
 */
-  // target mac address
-  for(int i = 0; i < sizeof(mac); i++) {
-    Udp.write(lowByte(mac[i]));
+  // target mac[device] address
+  for(int i = 0; i < sizeof(mac[device]); i++) {
+    Udp[device].write(lowByte(mac[device][i]));
   }
 
   // reserved2
-  Udp.write(lowByte(0x00));
-  Udp.write(lowByte(0x00));
+  Udp[device].write(lowByte(0x00));
+  Udp[device].write(lowByte(0x00));
 
   // site mac address
   for(int i = 0; i < sizeof(site_mac); i++) {
-    Udp.write(lowByte(site_mac[i]));
+    Udp[device].write(lowByte(0x00));
+    //Udp[device].write(lowByte(site_mac[i]));
   }
 
   // reserved3
-  Udp.write(lowByte(0x00));
-  Udp.write(lowByte(pkt.sequence));
+  Udp[device].write(lowByte(0x00));
+  Udp[device].write(lowByte(pkt.sequence));
   Serial.println(pkt.sequence, DEC);
 
   // reserved4
-  Udp.write(lowByte(0x00));
-  Udp.write(lowByte(0x00));
-  Udp.write(lowByte(0x00));
-  Udp.write(lowByte(0x00));
-  Udp.write(lowByte(0x00));
-  Udp.write(lowByte(0x00));
-  Udp.write(lowByte(0x00));
-  Udp.write(lowByte(0x00));
+  Udp[device].write(lowByte(0x00));
+  Udp[device].write(lowByte(0x00));
+  Udp[device].write(lowByte(0x00));
+  Udp[device].write(lowByte(0x00));
+  Udp[device].write(lowByte(0x00));
+  Udp[device].write(lowByte(0x00));
+  Udp[device].write(lowByte(0x00));
+  Udp[device].write(lowByte(0x00));
 
   //packet type
-  Udp.write(lowByte(pkt.packet_type));
-  Udp.write(highByte(pkt.packet_type));
+  Udp[device].write(lowByte(pkt.packet_type));
+  Udp[device].write(highByte(pkt.packet_type));
 
   // reserved5
-  Udp.write(lowByte(0x00));
-  Udp.write(lowByte(0x00));
+  Udp[device].write(lowByte(0x00));
+  Udp[device].write(lowByte(0x00));
 
   //data
   for(int i = 0; i < pkt.data_size; i++) {
-    Udp.write(lowByte(pkt.data[i]));
+    Udp[device].write(lowByte(pkt.data[i]));
   }
 
-  Udp.endPacket();
-
-  return LifxPacketSize + pkt.data_size;
-}
-
-unsigned int sendUDPxPacket(LifxPacket &pkt) {
-  // broadcast packet on local subnet
-  IPAddress remote_addr(UdpX.remoteIP());
-  IPAddress broadcast_addr(remote_addr[0], remote_addr[1], remote_addr[2], 255);
-
-  if(DEBUG) {
-    Serial.print(F("+UDPx (->"));
-    for ( int i=0; i < 3; i++) {
-      Serial.print(remote_addr[i]);
-      Serial.print(F("."));
-    }
-    Serial.print(remote_addr[3]);
-
-    Serial.print(F(":"));
-    Serial.print(UdpX.remotePort());
-    Serial.print(F(")"));
-    printLifxPacket(pkt);
-    Serial.println();
-  }
-
-  // UdpX.beginPacket(broadcast_addr, UdpX.remotePort());
-  UdpX.beginPacket(remote_addr, UdpX.remotePort());
-
-  // size
-  UdpX.write(lowByte(LifxPacketSize + pkt.data_size));
-  UdpX.write(highByte(LifxPacketSize + pkt.data_size));
-
-  // protocol
-  UdpX.write(lowByte(pkt.protocol));
-  UdpX.write(highByte(pkt.protocol));
-
-  // source
-  UdpX.write(pkt.source,4);
-  /*UdpX.write(lowByte(0x00));
-  UdpX.write(lowByte(0x00));
-  UdpX.write(lowByte(0x00));
-  UdpX.write(lowByte(0x00));
-  */
-
-  // target mac address
-  for(int i = 0; i < sizeof(mac); i++) {
-    UdpX.write(lowByte(mac[i]));
-  }
-
-  // reserved2
-  UdpX.write(lowByte(0x00));
-  UdpX.write(lowByte(0x00));
-/*
-  // site mac address
-  for(int i = 0; i < sizeof(site_mac); i++) {
-    UdpX.write(lowByte(site_mac[i]));
-  }
-*/
-
-  // site mac address
-  for(int i = 0; i < 6; i++) {
-    UdpX.write(lowByte(0x00));
-  }
-
-  // reserved3
-  UdpX.write(lowByte(0x00));
-  UdpX.write(pkt.sequence);
-
-  // sourcereserved4
-  UdpX.write(lowByte(0x00));
-  UdpX.write(lowByte(0x00));
-  UdpX.write(lowByte(0x00));
-  UdpX.write(lowByte(0x00));
-  UdpX.write(lowByte(0x00));
-  UdpX.write(lowByte(0x00));
-  UdpX.write(lowByte(0x00));
-  UdpX.write(lowByte(0x00));
-
-  //packet type
-  UdpX.write(lowByte(pkt.packet_type));
-  UdpX.write(highByte(pkt.packet_type));
-
-  // reserved5
-  UdpX.write(lowByte(0x00));
-  UdpX.write(lowByte(0x00));
-
-  //data
-  for(int i = 0; i < pkt.data_size; i++) {
-    UdpX.write(lowByte(pkt.data[i]));
-  }
-
-  UdpX.endPacket();
-
-  return LifxPacketSize + pkt.data_size;
-}
-
-unsigned int sendTCPPacket(LifxPacket &pkt) {
-
-  if(DEBUG) {
-    Serial.print(F("+TCP "));
-    printLifxPacket(pkt);
-    Serial.println();
-  }
-
-  byte TCPBuffer[128]; //buffer to hold outgoing packet,
-  int byteCount = 0;
-
-  // size
-  TCPBuffer[byteCount++] = lowByte(LifxPacketSize + pkt.data_size);
-  TCPBuffer[byteCount++] = highByte(LifxPacketSize + pkt.data_size);
-
-  // protocol
-  TCPBuffer[byteCount++] = lowByte(pkt.protocol);
-  TCPBuffer[byteCount++] = highByte(pkt.protocol);
-
-  // source
-  TCPBuffer[byteCount++] = lowByte(0x00);
-  TCPBuffer[byteCount++] = lowByte(0x00);
-  TCPBuffer[byteCount++] = lowByte(0x00);
-  TCPBuffer[byteCount++] = lowByte(0x00);
-
-  // target mac address
-  for(int i = 0; i < sizeof(mac); i++) {
-    TCPBuffer[byteCount++] = lowByte(mac[i]);
-  }
-
-  // reserved2
-  TCPBuffer[byteCount++] = lowByte(0x00);
-  TCPBuffer[byteCount++] = lowByte(0x00);
-
-  // site mac address
-  for(int i = 0; i < sizeof(site_mac); i++) {
-    TCPBuffer[byteCount++] = lowByte(site_mac[i]);
-  }
-
-  // reserved3
-  TCPBuffer[byteCount++] = lowByte(0x00);
-  TCPBuffer[byteCount++] = lowByte(0x00);
-
-  // sourcereserved4
-  TCPBuffer[byteCount++] = lowByte(0x00);
-  TCPBuffer[byteCount++] = lowByte(0x00);
-  TCPBuffer[byteCount++] = lowByte(0x00);
-  TCPBuffer[byteCount++] = lowByte(0x00);
-  TCPBuffer[byteCount++] = lowByte(0x00);
-  TCPBuffer[byteCount++] = lowByte(0x00);
-  TCPBuffer[byteCount++] = lowByte(0x00);
-  TCPBuffer[byteCount++] = lowByte(0x00);
-
-  //packet type
-  TCPBuffer[byteCount++] = lowByte(pkt.packet_type);
-  TCPBuffer[byteCount++] = highByte(pkt.packet_type);
-
-  // reserved5
-  TCPBuffer[byteCount++] = lowByte(0x00);
-  TCPBuffer[byteCount++] = lowByte(0x00);
-
-  //data
-  for(int i = 0; i < pkt.data_size; i++) {
-    TCPBuffer[byteCount++] = lowByte(pkt.data[i]);
-  }
-
-  Client.write(TCPBuffer, byteCount);
+  Udp[device].endPacket();
 
   return LifxPacketSize + pkt.data_size;
 }
 
 // print out a LifxPacket data structure as a series of hex bytes - used for DEBUG
-void printLifxPacket(LifxPacket &pkt) {
+void printLifxPacket(LifxPacket &pkt, unsigned int device) {
   // size
   Serial.print(lowByte(LifxPacketSize + pkt.data_size), HEX);
   Serial.print(SPACE);
@@ -1343,9 +771,9 @@ void printLifxPacket(LifxPacket &pkt) {
   Serial.print(lowByte(pkt.source[3]), HEX);
   Serial.print(SPACE);
 
-  // target mac address
-  for(int i = 0; i < sizeof(mac); i++) {
-    Serial.print(lowByte(mac[i]), HEX);
+  // target mac[device] address
+  for(int i = 0; i < sizeof(mac[device]); i++) {
+    Serial.print(lowByte(mac[device][i]), HEX);
     Serial.print(SPACE);
   }
 
