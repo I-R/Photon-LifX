@@ -40,7 +40,7 @@ void processRequest(byte *packetBuffer, int packetSize, LifxPacket &request);
 
 void handleRequest(LifxPacket &request, unsigned int device);
 
-void setLight();
+void setLight(unsigned int device);
 
 // set to 1 to output debug messages (including packet dumps) to serial (38400 baud)
 const boolean DEBUG = 1;
@@ -63,10 +63,15 @@ byte mac[LifxBulbNum][6] = {
 byte site_mac[] = {
   0x4c, 0x49, 0x46, 0x58, 0x56, 0x32 }; // spells out "LIFXV2" - version 2 of the app changes the site address to this...
 
-// pins for the RGB LED:
-const int redPin = 4;
-const int greenPin = 5;
-const int bluePin = 6;
+// pins for the RGB LED1:
+const int redPin1 = 4;
+const int greenPin1 = 5;
+const int bluePin1 = 6;
+
+//pins for the RGB LED2:
+const int redPin2 = 7;
+const int greenPin2 = 8;
+const int bluePin2 = 9;
 
 // label (name) for this bulb
 char bulbLabel[LifxBulbNum][LifxBulbLabelLength] = {"Photon Bulb 1","Photon Bulb 2"};
@@ -90,7 +95,10 @@ EthernetClient Client;*/
 
 UDP Udp[LifxBulbNum];
 
-RGBMoodLifx LIFXBulb(redPin, greenPin, bluePin);
+RGBMoodLifx LIFXBulb[LifxBulbNum] = {{0,0,0},{0,0,0}};
+
+//LIFXBulb[0](redPin1, greenPin1, bluePin1);
+//LIFXBulb[1](redPin2, greenPin2, bluePin2);
 
 String localIP;
 int    PacketsRX=0;
@@ -124,8 +132,12 @@ void setup() {
   pinMode(bluePin, OUTPUT);
   */
 
-  LIFXBulb.setFadingSteps(20);
-  LIFXBulb.setFadingSpeed(20);
+  // set fading steps and fading speed
+  for(int i=0; i < LifxBulbNum; i++) {
+    LIFXBulb[i].setFadingSteps(20);
+    LIFXBulb[i].setFadingSpeed(20);
+  };
+
 
   // read in settings from EEPROM (if they exist) for bulb label and tags
   if(EEPROM.read(EEPROM_CONFIG_START) == EEPROM_CONFIG[0]
@@ -220,12 +232,16 @@ void setup() {
   }
 
   // set the bulb based on the initial colors
-  setLight();
+  for(int i=0; i < LifxBulbNum; i++) {
+    setLight(i);
+  };
 }
 
 void loop() {
   State="loop";
-  LIFXBulb.tick();
+  for(int i = 0; i < LifxBulbTagLabelsLength; i++) {
+    LIFXBulb[i].tick();
+  }
 
   // buffers for receiving and sending data
   byte PacketBuffer[128]; //buffer to hold incoming packet,
@@ -378,7 +394,7 @@ void handleRequest(LifxPacket &request, unsigned int device) {
       bri = word(request.data[6], request.data[5]);
       kel = word(request.data[8], request.data[7]);
 
-      setLight();
+      setLight(device);
     }
     break;
 
@@ -458,7 +474,7 @@ void handleRequest(LifxPacket &request, unsigned int device) {
       // set if we are setting
       if(request.packet_type == SET_POWER_STATE) {
         power_status = word(request.data[1], request.data[0]);
-        setLight();
+        setLight(device);
       }
 
       // respond to both get and set commands
@@ -838,7 +854,7 @@ void printLifxPacket(LifxPacket &pkt, unsigned int device) {
   }
 }
 
-void setLight() {
+void setLight(unsigned int device) {
   if(DEBUG) {
     Serial.print(F("Set light - "));
     Serial.print(F("hue: "));
@@ -874,9 +890,9 @@ void setLight() {
       this_sat = map(kelvin_hsv.s*1000, 0, 1000, 0, 255); //multiply the sat by 1000 so we can map the percentage value returned by rgb2hsv
     }
 
-    LIFXBulb.fadeHSB(this_hue, this_sat, this_bri);
+    LIFXBulb[device].fadeHSB(this_hue, this_sat, this_bri);
   }
   else {
-    LIFXBulb.fadeHSB(0, 0, 0);
+    LIFXBulb[device].fadeHSB(0, 0, 0);
   }
 }
