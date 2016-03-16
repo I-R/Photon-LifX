@@ -48,6 +48,12 @@ const boolean DEBUG = 1;
 // Number of Bulbs presented by this scetch
 const unsigned int LifxBulbNum = 2;
 
+// bulb type:
+// 1 = white LED
+// 2 = RGB
+// 3 = RGBW
+const unsigned int LifxBulbType[LifxBulbNum]{2, 2};
+
 // Enter a MAC address and IP address for your controller below.
 // The IP address will be dependent on your local network:
 byte mac[LifxBulbNum][6] = {

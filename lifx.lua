@@ -463,5 +463,3 @@ local tcpTable = DissectorTable.get("tcp.port")
 tcpTable:add(56700, lifx)
 local udpTable = DissectorTable.get("udp.port")
 udpTable:add(56700, lifx)
-
-
