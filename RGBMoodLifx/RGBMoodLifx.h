@@ -16,6 +16,8 @@
 #include "application.h"
 #include "Adafruit_PWMServoDriver.h"
 
+static const uint16_t MAX_PWM = 4096;
+static const uint16_t MAX_VAL = 65535;
 class RGBMoodLifx {
   public:
     enum Modes {
@@ -27,8 +29,9 @@ class RGBMoodLifx {
       GREEN_MODE,
       FIRE_MODE
     };
+    int debug = 1;
 
-    RGBMoodLifx(uint8_t = 0, uint8_t = 0, uint8_t = 0); // New instance with output pin specified.
+    RGBMoodLifx(uint8_t, uint8_t[], Adafruit_PWMServoDriver& ); // New instance with output pin specified.
     void setHSB(uint16_t, uint16_t, uint16_t);     // Set a fixed color from HSB color space.
     void setRGB(uint16_t, uint16_t, uint16_t);     // Set a fixed color from RGB color space.
     void setRGB(uint32_t); // Using Color class.
@@ -36,7 +39,9 @@ class RGBMoodLifx {
     void fadeRGB(uint16_t, uint16_t, uint16_t);    // Fade to a new color (given in RGB color space).
     void fadeRGB(uint32_t); // Using Color class.
     void tick();                    // Update colors if needed. (call this in the loop function)
+    uint16_t weberfechner( uint16_t, uint16_t, uint16_t);
     void hsb2rgb(uint16_t, uint16_t, uint16_t, uint16_t&, uint16_t&, uint16_t&); // Used internally to convert HSB to RGB
+    void hsb2rgbw(uint16_t, uint16_t, uint16_t, uint16_t&, uint16_t&, uint16_t&, uint16_t&); // Used internally to convert HSB to RGB
     bool isFading() {return fading_;}     // True we are currently fading to a new color.
     bool isStill() {return not fading_;}  // True if we are not fading to a new color.
     void setMode(Modes m) {mode_ = m;}  // Change the mode.
@@ -48,9 +53,10 @@ class RGBMoodLifx {
     uint16_t blue() {return current_RGB_color_[2];}               // The current blue color.
   private:
     Modes mode_;
-    Adafruit_PWMServoDriver pwm;
-    uint8_t pins_[3];           // The pins for color output. (PWM)
-    uint16_t current_RGB_color_[3];
+    Adafruit_PWMServoDriver pwm_;
+    uint8_t type_;              // Type of Bulb
+    uint8_t pins_[4];           // The pins for color output. (PWM)
+    uint16_t current_RGB_color_[4];
     uint16_t current_HSB_color_[3];
     uint16_t initial_color_[3]; // Used when fading.
     uint16_t target_color_[3];  // Used when fading.
@@ -75,5 +81,9 @@ class Color {
     static const uint32_t AMARANTH = 0xE52B50;
     static const uint32_t ASPARAGUS = 0x87A96B;
 };
+
+static const uint8_t BULB_SINGLE = 0x01;
+static const uint8_t BULB_RGB    = 0x02;
+static const uint8_t BULB_RGBW   = 0x03;
 
 #endif

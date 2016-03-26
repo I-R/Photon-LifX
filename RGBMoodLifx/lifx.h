@@ -107,7 +107,7 @@ const byte MESH_FIRMWARE_STATE = 0x0f;
 // future data for EEPROM will start at 72...
 #define EEPROM_BULB_CONFIG 72 // One config Block takes 72 Bytes
 
-#define EEPROM_CONFIG "AL1" // 3 byte identifier for this sketch's EEPROM settings
+#define EEPROM_CONFIG "PL1" // 3 byte identifier for this sketch's EEPROM settings
 #define EEPROM_CONFIG_START 253 // store EEPROM_CONFIG at the end of EEPROM
 
 // helpers
