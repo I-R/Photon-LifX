@@ -306,6 +306,9 @@ void RGBMoodLifx::hsb2rgb(uint16_t hue, uint16_t sat, uint16_t val, uint16_t& r,
     blue  = b;
   }
   */
+/* Arithmetics taken from
+http://blog.saikoled.com/post/44677718712/how-to-convert-from-hsi-to-rgb-white
+*/
 float hue_, val_, sat_, r_ , g_, b_ ;
 //hue = fmod(hue,360); // cycle hue around to 0-360 degrees
 
