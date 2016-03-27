@@ -312,26 +312,26 @@ http://blog.saikoled.com/post/44677718712/how-to-convert-from-hsi-to-rgb-white
 float hue_, val_, sat_, r_ , g_, b_ ;
 //hue = fmod(hue,360); // cycle hue around to 0-360 degrees
 
-hue_ = 3.14159*(float)hue/180.0; // Convert to radians.
+hue_ = M_PI*(float)hue/180.0; // Convert to radians.
 val_ = (float)val/MAX_VAL*MAX_PWM/3;  // Normalize and scale
 sat_ = (float)sat/MAX_VAL;
 // sat = sat>0?(sat<1?sat:1):0; // clamp sat and val to interval [0,1]
 // val = val>0?(val<1?val:1):0;
 
 // Math! Thanks in part to Kyle Miller.
-if(hue_ < 2.09439) {
-  r_ = val_*(1.0+sat_*cos(hue_)/cos(1.047196667-hue_));
-  g_ = val_*(1.0+sat_*(1.0-cos(hue_)/cos(1.047196667-hue_)));
+if(hue_ < 2*M_PI/3) {
+  r_ = val_*(1.0+sat_*cos(hue_)/cos((M_PI/3)-hue_));
+  g_ = val_*(1.0+sat_*(1.0-cos(hue_)/cos((M_PI/3)-hue_)));
   b_ = val_*(1.0-sat_);
-} else if(hue_ < 4.188787) {
-  hue_ = hue_ - 2.09439;
-  g_ = val_*(1.0+sat_*cos(hue_)/cos(1.047196667-hue_));
-  b_ = val_*(1.0+sat_*(1.0-cos(hue_)/cos(1.047196667-hue_)));
+} else if(hue_ < 4*M_PI/3) {
+  hue_ = hue_ - (2*M_PI/3);
+  g_ = val_*(1.0+sat_*cos(hue_)/cos((M_PI/3)-hue_));
+  b_ = val_*(1.0+sat_*(1.0-cos(hue_)/cos((M_PI/3)-hue_)));
   r_ = val_*(1.0-sat_);
  } else {
-  hue_ = hue_ - 4.188787;
-  b_ = val_*(1.0+sat_*cos(hue_)/cos(1.047196667-hue_));
-  r_ = val_*(1.0+sat_*(1-cos(hue_)/cos(1.047196667-hue_)));
+  hue_ = hue_ - (4*M_PI/3);
+  b_ = val_*(1.0+sat_*cos(hue_)/cos((M_PI/3)-hue_));
+  r_ = val_*(1.0+sat_*(1-cos(hue_)/cos((M_PI/3)-hue_)));
   g_ = val_*(1.0-sat_);
  }
  r = int( r_ );
@@ -349,31 +349,31 @@ void RGBMoodLifx::hsb2rgbw(uint16_t H, uint16_t S, uint16_t I, uint16_t& r, uint
 
   float cos_h, cos_1047_h, H_, S_, I_, r_, g_, b_, w_;
   //H = fmod(H,360); // cycle H around to 0-360 degrees
-  H_ = 3.14159*H/180.0; // Convert to radians.
+  H_ = M_PI*H/180.0; // Convert to radians.
   I_ = (float)I/MAX_VAL*MAX_PWM;  // Normalize and scale
   S_ = (float)S/MAX_VAL;
   //S = S>0?(S<1?S:1):0; // clamp S and I to interval [0,1]
   //I = I>0?(I<1?I:1):0;
 
-  if(H_ < 2.09439) {
+  if(H_ < 2*M_PI/3) {
     cos_h = cos(H_);
-    cos_1047_h = cos(1.047196667-H_);
+    cos_1047_h = cos(M_PI/3-H_);
     r_ = S_*I_/3.0*(1.0+cos_h/cos_1047_h);
     g_ = S_*I_/3.0*(1.0+(1.0-cos_h/cos_1047_h));
     b_ = 0;
     w_ = (1-S_)*I_;
-  } else if(H_ < 4.188787) {
-    H_ = H_ - 2.09439;
+  } else if(H_ < 4*M_PI/3) {
+    H_ = H_ - 2*M_PI/3;
     cos_h = cos(H_);
-    cos_1047_h = cos(1.047196667-H_);
+    cos_1047_h = cos(M_PI/3-H_);
     g_ = S_*I_/3.0*(1.0+cos_h/cos_1047_h);
     b_ = S_*I_/3.0*(1.0+(1.0-cos_h/cos_1047_h));
     r_ = 0.0;
     w_ = (1.0-S_)*I_;
   } else {
-    H_ = H_ - 4.188787;
+    H_ = H_ - 4*M_PI/3;
     cos_h = cos(H_);
-    cos_1047_h = cos(1.047196667-H_);
+    cos_1047_h = cos(M_PI/3-H_);
     b_ = S_*I_/3.0*(1.0+cos_h/cos_1047_h);
     r_ = S_*I_/3.0*(1.0+(1.0-cos_h/cos_1047_h));
     g_ = 0.0;
@@ -408,7 +408,7 @@ void RGBMoodLifx::fade()
         break;
       case BULB_RGBW:
         {
-          hsb2rgbw(current_HSB_color_[0], current_HSB_color_[1], current_HSB_color_[2], current_RGB_color_[0], current_RGB_color_[1], current_RGB_color_[2], current_RGB_color_[2]);
+          hsb2rgbw(current_HSB_color_[0], current_HSB_color_[1], current_HSB_color_[2], current_RGB_color_[0], current_RGB_color_[1], current_RGB_color_[2], current_RGB_color_[3]);
         }
         break;
       }
