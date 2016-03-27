@@ -32,7 +32,7 @@
 // ALPHA: Dual Bulb
 // BETA:  Single Bulb
 
-#define DEVICE_NAME BETA
+#define DEVICE_NAME ALPHA
 
 // set to 1 to output debug messages (including packet dumps) to serial (38400 baud)
 const boolean DEBUG = 1;

@@ -349,31 +349,31 @@ void RGBMoodLifx::hsb2rgbw(uint16_t H, uint16_t S, uint16_t I, uint16_t& r, uint
 
   float cos_h, cos_1047_h, H_, S_, I_, r_, g_, b_, w_;
   //H = fmod(H,360); // cycle H around to 0-360 degrees
-  H_ = 3.14159*H/180.0; // Convert to radians.
+  H_ = M_PI*H/180.0; // Convert to radians.
   I_ = (float)I/MAX_VAL*MAX_PWM;  // Normalize and scale
   S_ = (float)S/MAX_VAL;
   //S = S>0?(S<1?S:1):0; // clamp S and I to interval [0,1]
   //I = I>0?(I<1?I:1):0;
 
-  if(H_ < 2.09439) {
+  if(H_ < 2*M_PI/3) {
     cos_h = cos(H_);
-    cos_1047_h = cos(1.047196667-H_);
+    cos_1047_h = cos(M_PI/3-H_);
     r_ = S_*I_/3.0*(1.0+cos_h/cos_1047_h);
     g_ = S_*I_/3.0*(1.0+(1.0-cos_h/cos_1047_h));
     b_ = 0;
     w_ = (1-S_)*I_;
-  } else if(H_ < 4.188787) {
-    H_ = H_ - 2.09439;
+  } else if(H_ < 4*M_PI/3) {
+    H_ = H_ - 2*M_PI/3;
     cos_h = cos(H_);
-    cos_1047_h = cos(1.047196667-H_);
+    cos_1047_h = cos(M_PI/3-H_);
     g_ = S_*I_/3.0*(1.0+cos_h/cos_1047_h);
     b_ = S_*I_/3.0*(1.0+(1.0-cos_h/cos_1047_h));
     r_ = 0.0;
     w_ = (1.0-S_)*I_;
   } else {
-    H_ = H_ - 4.188787;
+    H_ = H_ - 4*M_PI/3;
     cos_h = cos(H_);
-    cos_1047_h = cos(1.047196667-H_);
+    cos_1047_h = cos(M_PI/3-H_);
     b_ = S_*I_/3.0*(1.0+cos_h/cos_1047_h);
     r_ = S_*I_/3.0*(1.0+(1.0-cos_h/cos_1047_h));
     g_ = 0.0;
