@@ -16,7 +16,7 @@
 #include "application.h"
 #include "Adafruit_PWMServoDriver.h"
 
-static const uint16_t MAX_PWM = 4096;
+static const uint16_t MAX_PWM = 4095;
 static const uint16_t MAX_VAL = 65535;
 class RGBMoodLifx {
   public:
@@ -29,7 +29,7 @@ class RGBMoodLifx {
       GREEN_MODE,
       FIRE_MODE
     };
-    int debug = 1;
+    int debug = 0;
 
     RGBMoodLifx(uint8_t, uint8_t[], Adafruit_PWMServoDriver& ); // New instance with output pin specified.
     void setHSB(uint16_t, uint16_t, uint16_t);     // Set a fixed color from HSB color space.

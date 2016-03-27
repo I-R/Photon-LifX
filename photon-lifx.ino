@@ -28,6 +28,15 @@
 #include "color.h"
 #include "Adafruit_PWMServoDriver.h"
 
+// set devive
+// ALPHA: Dual Bulb
+// BETA:  Single Bulb
+
+#define DEVICE_NAME BETA
+
+// set to 1 to output debug messages (including packet dumps) to serial (38400 baud)
+const boolean DEBUG = 1;
+
 
 // Function declaration
 void printLifxPacket(LifxPacket &pkt, unsigned int device);
@@ -44,9 +53,14 @@ void setLight(unsigned int device);
 
 int BlinkLights(String cmd);
 
-// set to 1 to output debug messages (including packet dumps) to serial (38400 baud)
-const boolean DEBUG = 1;
+Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
+
+#if defined DEVICE_NAME && DEVICE_NAME == ALPHA
+
+//*************************
+//* Settings for dual Lamp
+//*************************
 // Number of Bulbs presented by this scetch
 const unsigned int LifxBulbNum = 2;
 
@@ -69,8 +83,6 @@ const byte site_mac[] = {
 uint8_t BulbPins1[]={0,1,2,3};
 uint8_t BulbPins2[]={4,5,6};
 
-Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
-
 RGBMoodLifx LIFXBulb[LifxBulbNum] = {{BULB_RGBW,BulbPins1,pwm},{BULB_RGB,BulbPins2,pwm}};
 
 // label (name) for this bulb
@@ -87,6 +99,46 @@ long sat[LifxBulbNum] = {0,0};
 long bri[LifxBulbNum] = {65535,65535};
 long kel[LifxBulbNum] = {2000,2000};
 long dim[LifxBulbNum] = {0,0};
+#elif defined DEVICE_NAME && DEVICE_NAME == BETA
+// Number of Bulbs presented by this scetch
+const unsigned int LifxBulbNum = 1;
+
+// bulb type:
+// 1 = white LED
+// 2 = RGB
+// 3 = RGBW
+const unsigned int LifxBulbType[LifxBulbNum]={2};
+
+// Enter a MAC address and IP address for your controller below.
+// The IP address will be dependent on your local network:
+const byte mac[LifxBulbNum][6] = {
+  {0xDE, 0xAD, 0xDE, 0xAD, 0xDF, 0x01},
+};
+
+const byte site_mac[] = {
+  0x4c, 0x49, 0x46, 0x58, 0x56, 0x32 }; // spells out "LIFXV2" - version 2 of the app changes the site address to this...
+
+// pins for the RGB LED1:
+uint8_t BulbPins1[]={0,1,2,3};
+uint8_t BulbPins2[]={4,5,6};
+
+RGBMoodLifx LIFXBulb[LifxBulbNum] = {{BULB_RGBW,BulbPins2,pwm}};
+
+// label (name) for this bulb
+char bulbLabel[LifxBulbNum][LifxBulbLabelLength] = {"Beta 1",};
+
+// tags for this bulb
+char bulbTags[LifxBulbNum][LifxBulbTagsLength] = {{0,0,0,0,0,0,0,0}};
+char bulbTagLabels[LifxBulbNum][LifxBulbTagLabelsLength] = {""};
+
+// initial bulb values - warm white!
+long power_status[LifxBulbNum] = {65535};
+long hue[LifxBulbNum] = {0};
+long sat[LifxBulbNum] = {0};
+long bri[LifxBulbNum] = {65535};
+long kel[LifxBulbNum] = {2000};
+long dim[LifxBulbNum] = {0};
+#endif
 
 // Ethernet instances, for UDP broadcasting, and TCP server and Client
 /*EthernetUDP Udp;
@@ -351,7 +403,9 @@ void handleRequest(LifxPacket &request, unsigned int device) {
     Serial.print(F("Device["));
     Serial.print(device, DEC);
     Serial.print(F("]  Received packet type "));
-    Serial.println(request.packet_type, DEC);
+    Serial.print(request.packet_type, DEC);
+    Serial.print(F("|  Proto: "));
+    Serial.println(request.protocol, HEX);
     /*
     Serial.print("Seq: ");
     Serial.println(request.sequence,DEC);
@@ -373,23 +427,45 @@ void handleRequest(LifxPacket &request, unsigned int device) {
   case GET_PAN_GATEWAY:
     {
       // we are a gateway, so respond to this
-      for ( int i = 0 ; i < LifxBulbNum; i++ ) {
-        // respond with the UDP port
+      /* target == 0x000000000000 : Discovery sent to broadcast */
+      if ( /* request.target[0] | request.target[1] | request.target[2] |
+            request.target[3] | request.target[4] | request.target[5] == 0 || */ request.protocol == 0x3400) {
+
+        for ( int i = 0 ; i < LifxBulbNum; i++ ) {
+          // respond with the UDP port
+          response.packet_type = PAN_GATEWAY;
+          response.protocol = LifxProtocol_AllBulbsResponse;
+          byte UDPdata[] = {
+            SERVICE_UDP, //UDP
+            lowByte(LifxPort+i),
+            highByte(LifxPort+i),
+            0x00,
+            0x00
+          };
+
+          memcpy(response.data, UDPdata, sizeof(UDPdata));
+          response.data_size = sizeof(UDPdata);
+          sendPacket(response, i, remote_addr, remote_port);
+
+          delay( 100 );
+        }
+
+      } else {
+        Serial.println(String::format("Discovery %d",device));
         response.packet_type = PAN_GATEWAY;
         response.protocol = LifxProtocol_AllBulbsResponse;
         byte UDPdata[] = {
           SERVICE_UDP, //UDP
-          lowByte(LifxPort+i),
-          highByte(LifxPort+i),
+          lowByte(LifxPort+device),
+          highByte(LifxPort+device),
           0x00,
           0x00
         };
 
         memcpy(response.data, UDPdata, sizeof(UDPdata));
         response.data_size = sizeof(UDPdata);
-        sendPacket(response, i, remote_addr, remote_port);
+        sendPacket(response, device, remote_addr, remote_port);
 
-        delay( 100 );
       }
     }
 
@@ -706,8 +782,7 @@ unsigned int sendUDPPacket(LifxPacket &pkt, unsigned int device, IPAddress &remo
     Serial.print(F(":"));
     Serial.print(Udp[device].remotePort());
     Serial.print(F(") "));
-    // printLifxPacket(pkt, device);
-
+    printLifxPacket(pkt, device);
     Serial.println();
   }
 
