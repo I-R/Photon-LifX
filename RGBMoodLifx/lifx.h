@@ -57,25 +57,32 @@ const unsigned int LifxBulbLabelLength = 32;
 const unsigned int LifxBulbTagsLength = 8;
 const unsigned int LifxBulbTagLabelsLength = 32;
 
-// firmware versions, etc
-const unsigned int LifxBulbVendor = 1;
+// firmware versions, etc ORIGINAL
+/*
+const unsigned int LifxBulbVendor = 1; #
 const unsigned int LifxBulbProduct = 1;
 const unsigned int LifxBulbVersion = 1;
 const unsigned int LifxFirmwareVersionMajor = 1;
 const unsigned int LifxFirmwareVersionMinor = 5;
+*/
+const unsigned int LifxBulbVendor = 1;
+const unsigned int LifxBulbProduct = 1;
+const unsigned int LifxBulbVersion = 1;
+const unsigned int LifxFirmwareVersionMajor = 0;
+const unsigned int LifxFirmwareVersionMinor = 3;
 
 const byte SERVICE_UDP = 0x01;
 const byte SERVICE_TCP = 0x02;
 
 // packet types
-const byte GET_PAN_GATEWAY = 0x02;
-const byte PAN_GATEWAY = 0x03;
+const byte GET_SERVICE = 0x02;
+const byte STATE_SERVICE = 0x03;
 
 const byte GET_WIFI_FIRMWARE_STATE = 0x12;
 const byte WIFI_FIRMWARE_STATE = 0x13;
 
 const byte GET_POWER_STATE = 0x14;
-const byte SET_POWER_STATE = 0x75;
+const byte SET_POWER_STATE = 0x15;
 const byte POWER_STATE = 0x16;
 
 const byte GET_BULB_LABEL = 0x17;
@@ -100,6 +107,13 @@ const byte LIGHT_STATUS = 0x6b;
 const byte GET_MESH_FIRMWARE_STATE = 0x0e;
 const byte MESH_FIRMWARE_STATE = 0x0f;
 
+const byte GET_LOCATION = 0x30;
+const byte STATE_LOCATION = 0x32;
+
+const byte GET_GROUP = 0x33;
+const byte STATE_GROUP = 0x35;
+
+const byte BULB_ACK = 0x2d;
 
 #define EEPROM_BULB_LABEL_START 0 // 32 bytes long
 #define EEPROM_BULB_TAGS_START 32 // 8 bytes long

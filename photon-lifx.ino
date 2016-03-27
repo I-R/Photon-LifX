@@ -32,7 +32,7 @@
 // ALPHA: Dual Bulb
 // BETA:  Single Bulb
 
-#define DEVICE_NAME BETA
+#define DEVICE_NAME ALPHA
 
 // set to 1 to output debug messages (including packet dumps) to serial (38400 baud)
 const boolean DEBUG = 1;
@@ -405,7 +405,9 @@ void handleRequest(LifxPacket &request, unsigned int device) {
     Serial.print(F("]  Received packet type "));
     Serial.print(request.packet_type, DEC);
     Serial.print(F("|  Proto: "));
-    Serial.println(request.protocol, HEX);
+    Serial.print(request.protocol, HEX);
+    Serial.print(F("|  ACK/RES: "));
+    Serial.println(request.reserved3, HEX);
     /*
     Serial.print("Seq: ");
     Serial.println(request.sequence,DEC);
@@ -424,7 +426,7 @@ void handleRequest(LifxPacket &request, unsigned int device) {
   int       remote_port = Udp[device].remotePort();
   switch(request.packet_type) {
 
-  case GET_PAN_GATEWAY:
+  case GET_SERVICE:
     {
       // we are a gateway, so respond to this
       /* target == 0x000000000000 : Discovery sent to broadcast */
@@ -433,7 +435,7 @@ void handleRequest(LifxPacket &request, unsigned int device) {
 
         for ( int i = 0 ; i < LifxBulbNum; i++ ) {
           // respond with the UDP port
-          response.packet_type = PAN_GATEWAY;
+          response.packet_type = STATE_SERVICE;
           response.protocol = LifxProtocol_AllBulbsResponse;
           byte UDPdata[] = {
             SERVICE_UDP, //UDP
@@ -452,8 +454,8 @@ void handleRequest(LifxPacket &request, unsigned int device) {
 
       } else {
         Serial.println(String::format("Discovery %d",device));
-        response.packet_type = PAN_GATEWAY;
-        response.protocol = LifxProtocol_AllBulbsResponse;
+        response.packet_type = STATE_SERVICE;
+        //response.protocol = LifxProtocol_AllBulbsResponse;
         byte UDPdata[] = {
           SERVICE_UDP, //UDP
           lowByte(LifxPort+device),
@@ -481,6 +483,16 @@ void handleRequest(LifxPacket &request, unsigned int device) {
       kel[device] = word(request.data[8], request.data[7]);
 
       setLight(device);
+
+      if ( request.reserved3 == 2 ) {
+        // respond to both get and set commands
+        response.packet_type = BULB_ACK;
+        response.protocol = LifxProtocol_BulbCommand;
+        // memcpy(response.data, bulbLabel[device], LifxBulbLabelLength);
+        response.data_size = 0;
+        sendPacket(response, device, remote_addr, remote_port);
+
+      }
     }
     break;
 
@@ -719,7 +731,6 @@ void handleRequest(LifxPacket &request, unsigned int device) {
     }
     break;
 
-
   case GET_WIFI_FIRMWARE_STATE:
     {
       // respond to get command
@@ -737,6 +748,56 @@ void handleRequest(LifxPacket &request, unsigned int device) {
 
       memcpy(response.data, WifiVersionData, sizeof(WifiVersionData));
       response.data_size = sizeof(WifiVersionData);
+      sendPacket(response, device, remote_addr, remote_port);
+    }
+    break;
+
+
+  case GET_GROUP:
+    {
+      // respond to get command
+      response.packet_type = STATE_GROUP;
+      //response.protocol = LifxProtocol_AllBulbsResponse;
+      // timestamp data comes from observed packet from a LIFX v1.5 bulb
+      byte group[16] = {
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //group 0x01
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      };
+      byte groupname[32] = "ALPHA";
+      byte timestamp[8] = {
+        0xc0, 0x0c, 0x07, 0x00, 0x48, 0x46, 0xd9, 0x43, //install timestamp
+        };
+
+      memcpy(response.data, group, sizeof(group));
+      memcpy(response.data+16, groupname, sizeof( groupname ));
+      memcpy(response.data+16+32, timestamp, sizeof(timestamp));
+
+      response.data_size = 16+32+8;
+      sendPacket(response, device, remote_addr, remote_port);
+    }
+    break;
+
+
+  case GET_LOCATION:
+    {
+      // respond to get command
+      response.packet_type = STATE_LOCATION;
+      //response.protocol = LifxProtocol_AllBulbsResponse;
+      // timestamp data comes from observed packet from a LIFX v1.5 bulb
+      byte group[16] = {
+        0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, //group 0x01
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      };
+      byte location[32] = "Wohnzimmer";
+      byte timestamp[8] = {
+        0xc0, 0x0c, 0x07, 0x00, 0x48, 0x46, 0xd9, 0x43, //install timestamp
+        };
+
+      memcpy(response.data, group, sizeof(group));
+      memcpy(response.data+16, location, sizeof( location ));
+      memcpy(response.data+16+32, timestamp, sizeof(timestamp));
+
+      response.data_size = 16+32+8;
       sendPacket(response, device, remote_addr, remote_port);
     }
     break;
