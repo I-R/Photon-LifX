@@ -408,7 +408,7 @@ void RGBMoodLifx::fade()
         break;
       case BULB_RGBW:
         {
-          hsb2rgbw(current_HSB_color_[0], current_HSB_color_[1], current_HSB_color_[2], current_RGB_color_[0], current_RGB_color_[1], current_RGB_color_[2], current_RGB_color_[2]);
+          hsb2rgbw(current_HSB_color_[0], current_HSB_color_[1], current_HSB_color_[2], current_RGB_color_[0], current_RGB_color_[1], current_RGB_color_[2], current_RGB_color_[3]);
         }
         break;
       }

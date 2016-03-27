@@ -16,7 +16,7 @@
 #include "application.h"
 #include "Adafruit_PWMServoDriver.h"
 
-static const uint16_t MAX_PWM = 4096;
+static const uint16_t MAX_PWM = 4095;
 static const uint16_t MAX_VAL = 65535;
 class RGBMoodLifx {
   public:
