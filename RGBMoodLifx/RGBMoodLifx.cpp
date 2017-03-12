@@ -1,7 +1,7 @@
 #include "math.h"
 
 #include "RGBMoodLifx.h"
-#include "Adafruit_PWMServoDriver.h"
+#include "PWMServoDriver/Adafruit_PWMServoDriver.h"
 
 
 // Dim curve

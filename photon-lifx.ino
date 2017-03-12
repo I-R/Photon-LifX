@@ -23,16 +23,19 @@
  slightly to support powering down the LED
  */
 
-#include "lifx.h"
-#include "RGBMoodLifx.h"
-#include "color.h"
-#include "Adafruit_PWMServoDriver.h"
+#include "RGBMoodLifx/lifx.h"
+#include "RGBMoodLifx/RGBMoodLifx.h"
+#include "RGBMoodLifx/color.h"
+#include "PWMServoDriver/Adafruit_PWMServoDriver.h"
 
 // set devive
 // ALPHA: Dual Bulb
 // BETA:  Single Bulb
 
-#define DEVICE_NAME ALPHA
+#define DEVICE_ID 1
+// Alpha : 1
+// Beta: 2
+// Test: 9
 
 // set to 1 to output debug messages (including packet dumps) to serial (38400 baud)
 const boolean DEBUG = 1;
@@ -56,19 +59,21 @@ int BlinkLights(String cmd);
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 
-#if defined DEVICE_NAME && DEVICE_NAME == ALPHA
+#if DEVICE_ID == 1
 
 //*************************
 //* Settings for dual Lamp
 //*************************
-// Number of Bulbs presented by this scetch
+// Number of Bulbs presented by this sketch
+const char DeviceName[] = "Alpha";
+
 const unsigned int LifxBulbNum = 2;
 
 // bulb type:
 // 1 = white LED
 // 2 = RGB
 // 3 = RGBW
-const unsigned int LifxBulbType[LifxBulbNum]={2, 2};
+const unsigned int LifxBulbType[LifxBulbNum]={3, 2};
 
 // Enter a MAC address and IP address for your controller below.
 // The IP address will be dependent on your local network:
@@ -80,7 +85,7 @@ const byte site_mac[] = {
   0x4c, 0x49, 0x46, 0x58, 0x56, 0x32 }; // spells out "LIFXV2" - version 2 of the app changes the site address to this...
 
 // pins for the RGB LED1:
-uint8_t BulbPins1[]={0,1,2,3};
+uint8_t BulbPins1[]={1,0,2,3}; // GRBW
 uint8_t BulbPins2[]={4,5,6};
 
 RGBMoodLifx LIFXBulb[LifxBulbNum] = {{BULB_RGBW,BulbPins1,pwm},{BULB_RGB,BulbPins2,pwm}};
@@ -99,8 +104,12 @@ long sat[LifxBulbNum] = {0,0};
 long bri[LifxBulbNum] = {65535,65535};
 long kel[LifxBulbNum] = {2000,2000};
 long dim[LifxBulbNum] = {0,0};
-#elif defined DEVICE_NAME && DEVICE_NAME == BETA
-// Number of Bulbs presented by this scetch
+
+#elif DEVICE_ID == 2
+
+const char DeviceName[] = "Beta";
+
+// Number of Bulbs presented by this sketch
 const unsigned int LifxBulbNum = 1;
 
 // bulb type:
@@ -138,6 +147,58 @@ long sat[LifxBulbNum] = {0};
 long bri[LifxBulbNum] = {65535};
 long kel[LifxBulbNum] = {2000};
 long dim[LifxBulbNum] = {0};
+
+#elif DEVICE_ID == 9
+
+//*************************
+//* Settings for dual Lamp
+//*************************
+
+const char DeviceName[] = "Test";
+
+// Number of Bulbs presented by this sketch
+const unsigned int LifxBulbNum = 4;
+
+// bulb type:
+// 1 = white LED
+// 2 = RGB
+// 3 = RGBW
+const unsigned int LifxBulbType[LifxBulbNum]={3, 2, 1, 3};
+
+// Enter a MAC address and IP address for your controller below.
+// The IP address will be dependent on your local network:
+const byte mac[LifxBulbNum][6] = {
+  {0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0x01},
+  {0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0x02},
+  {0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0x03},
+  {0xDE, 0xAD, 0xDE, 0xAD, 0xDE, 0x04}};
+
+const byte site_mac[] = {
+  0x4c, 0x49, 0x46, 0x58, 0x56, 0x32 }; // spells out "LIFXV2" - version 2 of the app changes the site address to this...
+
+// pins for the RGB LED1:
+uint8_t BulbPins1[]={1,0,2,3}; // GRBW
+uint8_t BulbPins2[]={4,5,6};
+uint8_t BulbPins3[]={7};
+uint8_t BulbPins4[]={8,9,10,11};
+
+RGBMoodLifx LIFXBulb[LifxBulbNum] = {{BULB_RGBW,BulbPins1,pwm},{BULB_RGB,BulbPins2,pwm},{BULB_RGBW,BulbPins3,pwm},{BULB_RGB,BulbPins4,pwm}};
+
+
+// label (name) for this bulb
+char bulbLabel[LifxBulbNum][LifxBulbLabelLength] = {"Bulb 1","Bulb 2","Bulb 3","Bulb 4"};
+
+// tags for this bulb
+char bulbTags[LifxBulbNum][LifxBulbTagsLength] = {{0,0,0,0,0,0,0,0},{0,0,0,0,0,0,0,0},{0,0,0,0,0,0,0,0},{0,0,0,0,0,0,0,0}};
+char bulbTagLabels[LifxBulbNum][LifxBulbTagLabelsLength] = {"","","",""};
+
+// initial bulb values - warm white!
+long power_status[LifxBulbNum] = {65535,65535,65535,65535};
+long hue[LifxBulbNum] = {0,0,0,0};
+long sat[LifxBulbNum] = {0,0,0,0};
+long bri[LifxBulbNum] = {65535,65535,65535,65535};
+long kel[LifxBulbNum] = {1000,2000,3000,4000};
+long dim[LifxBulbNum] = {0,0,0,0};
 #endif
 
 // Ethernet instances, for UDP broadcasting, and TCP server and Client
@@ -152,13 +213,35 @@ UDP Udp[LifxBulbNum];
 //LIFXBulb[1](redPin2, greenPin2, bluePin2);
 
 String localIP;
-int    PacketsRX=0;
+
+uint32_t   PacketsRX=0;
+uint32_t   PacketsTX=0;
+
+uint32_t    BytesRX=0;
+uint32_t    BytesTX=0;
+
 String State="Undefined";
 
 void setup() {
+  Serial.begin(38400);
+
+  for( int i=0 ; i<20; i++){
+    Serial.print(".");
+    delay (1000);
+    if ( Serial.available() ) {
+      i=20;
+    }
+  }
+
+  Serial.print(F("LIFX bulb emulator for Particle Photon starting up. Number of devices: "));
+  Serial.println( LifxBulbNum );
 
   Particle.variable("IP", localIP);
   Particle.variable("PacketsRX", PacketsRX);
+  Particle.variable("PacketsTX", PacketsTX);
+  Particle.variable("BytesRX", BytesRX);
+  Particle.variable("BytesTX", BytesTX);
+
   Particle.variable("State", State);
 
   Particle.function("Blink", BlinkLights);
@@ -166,10 +249,7 @@ void setup() {
   State="setup";
   Wire.begin();
 
-  Serial.begin(38400);
-  Serial.println(F("LIFX bulb emulator for Arduino starting up..."));
-
-    Serial.print(F("IP address for this bulb: "));
+  Serial.print(F("IP address for this bulb: "));
   localIP = WiFi.localIP();
   Serial.println( localIP );
 
@@ -290,6 +370,8 @@ void setup() {
   for(int i=0; i < LifxBulbNum; i++) {
     setLight(i);
   };
+  Serial.print( "Done startup. Device Name: ");
+  Serial.println( DeviceName );
 }
 
 void loop() {
@@ -307,6 +389,8 @@ void loop() {
     if(packetSize) {
       Udp[j].read(PacketBuffer, 128);
       PacketsRX++;
+      BytesRX += packetSize;
+
 
 
       if(DEBUG) {
@@ -402,9 +486,11 @@ void handleRequest(LifxPacket &request, unsigned int device) {
   if(DEBUG) {
     Serial.print(F("Device["));
     Serial.print(device, DEC);
-    Serial.print(F("]  Received packet type "));
+    Serial.print(F("]  Received packet type 0x"));
+    Serial.print(request.packet_type, HEX);
+    Serial.print(F(" ("));
     Serial.print(request.packet_type, DEC);
-    Serial.print(F("|  Proto: "));
+    Serial.print(F(")|  Proto: "));
     Serial.print(request.protocol, HEX);
     Serial.print(F("|  ACK/RES: "));
     Serial.println(request.reserved3, HEX);
@@ -436,7 +522,7 @@ void handleRequest(LifxPacket &request, unsigned int device) {
         for ( int i = 0 ; i < LifxBulbNum; i++ ) {
           // respond with the UDP port
           response.packet_type = STATE_SERVICE;
-          response.protocol = LifxProtocol_AllBulbsResponse;
+          // response.protocol = LifxProtocol_AllBulbsResponse;
           byte UDPdata[] = {
             SERVICE_UDP, //UDP
             lowByte(LifxPort+i),
@@ -501,7 +587,7 @@ void handleRequest(LifxPacket &request, unsigned int device) {
     {
       // send the light's state
       response.packet_type = LIGHT_STATUS;
-      response.protocol = LifxProtocol_AllBulbsResponse;
+      // response.protocol = LifxProtocol_AllBulbsResponse;
       byte StateData[] = {
         lowByte(hue[device]),  //hue
         highByte(hue[device]), //hue
@@ -577,7 +663,7 @@ void handleRequest(LifxPacket &request, unsigned int device) {
 
       // respond to both get and set commands
       response.packet_type = POWER_STATE;
-      response.protocol = LifxProtocol_AllBulbsResponse;
+      // response.protocol = LifxProtocol_AllBulbsResponse;
       byte PowerData[] = {
         lowByte(power_status[device]),
         highByte(power_status[device])
@@ -605,7 +691,7 @@ void handleRequest(LifxPacket &request, unsigned int device) {
 
       // respond to both get and set commands
       response.packet_type = BULB_LABEL;
-      response.protocol = LifxProtocol_AllBulbsResponse;
+      //response.protocol = LifxProtocol_AllBulbsResponse;
       memcpy(response.data, bulbLabel[device], LifxBulbLabelLength);
       response.data_size = LifxBulbLabelLength;
       sendPacket(response, device, remote_addr, remote_port);
@@ -628,7 +714,7 @@ void handleRequest(LifxPacket &request, unsigned int device) {
 
       // respond to both get and set commands
       response.packet_type = BULB_TAGS;
-      response.protocol = LifxProtocol_AllBulbsResponse;
+      // response.protocol = LifxProtocol_AllBulbsResponse;
       memcpy(response.data, bulbTags[device], sizeof(bulbTags));
       response.data_size = sizeof(bulbTags);
       sendPacket(response, device, remote_addr, remote_port);
@@ -651,7 +737,7 @@ void handleRequest(LifxPacket &request, unsigned int device) {
 
       // respond to both get and set commands
       response.packet_type = BULB_TAG_LABELS;
-      response.protocol = LifxProtocol_AllBulbsResponse;
+      // response.protocol = LifxProtocol_AllBulbsResponse;
       memcpy(response.data, bulbTagLabels[device], sizeof(bulbTagLabels));
       response.data_size = sizeof(bulbTagLabels);
       sendPacket(response, device, remote_addr, remote_port);
@@ -663,7 +749,7 @@ void handleRequest(LifxPacket &request, unsigned int device) {
     {
       // respond to get command
       response.packet_type = VERSION_STATE;
-      response.protocol = LifxProtocol_AllBulbsResponse;
+      // response.protocol = LifxProtocol_AllBulbsResponse;
       byte VersionData[] = {
         lowByte(LifxBulbVendor),
         highByte(LifxBulbVendor),
@@ -714,7 +800,7 @@ void handleRequest(LifxPacket &request, unsigned int device) {
     {
       // respond to get command
       response.packet_type = MESH_FIRMWARE_STATE;
-      response.protocol = LifxProtocol_AllBulbsResponse;
+      //response.protocol = LifxProtocol_AllBulbsResponse;
       // timestamp data comes from observed packet from a LIFX v1.5 bulb
       byte MeshVersionData[] = {
         0x00, 0x2e, 0xc3, 0x8b, 0xef, 0x30, 0x86, 0x13, //build timestamp
@@ -731,11 +817,29 @@ void handleRequest(LifxPacket &request, unsigned int device) {
     }
     break;
 
+  case GET_WIFI_INFO:
+    {
+      // respond to get command
+      response.packet_type = STATE_WIFI_INFO;
+      // response.protocol = LifxProtocol_AllBulbsResponse;
+      // timestamp data comes from observed packet from a LIFX v1.5 bulb
+      float signal      = 1.0;
+      uint16_t reserved = 0;
+      memcpy(response.data      , &signal,   sizeof(signal));
+      memcpy(response.data+4    , &BytesTX,  sizeof(BytesTX));
+      memcpy(response.data+4+4  , &BytesRX,  sizeof(BytesRX));
+      memcpy(response.data+4+4+4, &reserved, sizeof(reserved));
+
+      response.data_size = 4+4+4+2;
+      sendPacket(response, device, remote_addr, remote_port);
+    }
+    break;
+
   case GET_WIFI_FIRMWARE_STATE:
     {
       // respond to get command
       response.packet_type = WIFI_FIRMWARE_STATE;
-      response.protocol = LifxProtocol_AllBulbsResponse;
+      // response.protocol = LifxProtocol_AllBulbsResponse;
       // timestamp data comes from observed packet from a LIFX v1.5 bulb
       byte WifiVersionData[] = {
         0x00, 0xc8, 0x5e, 0x31, 0x99, 0x51, 0x86, 0x13, //build timestamp
@@ -802,6 +906,29 @@ void handleRequest(LifxPacket &request, unsigned int device) {
     }
     break;
 
+  case SET_LIGHT_POWER:
+  case GET_LIGHT_POWER:
+    {
+      // set if we are setting
+      if(request.packet_type == SET_LIGHT_POWER) {
+        power_status[device] = word(request.data[1], request.data[0]);
+        setLight(device);
+      }
+
+      // respond to both get and set commands
+      response.packet_type = STATE_LIGHT_POWER;
+      //response.protocol = LifxProtocol_AllBulbsResponse;
+      byte PowerData[] = {
+        lowByte(power_status[device]),
+        highByte(power_status[device])
+        };
+
+      memcpy(response.data, PowerData, sizeof(PowerData));
+      response.data_size = sizeof(PowerData);
+      sendPacket(response, device, remote_addr, remote_port);
+    }
+    break;
+
 
   default:
     {
@@ -816,6 +943,10 @@ void handleRequest(LifxPacket &request, unsigned int device) {
 void sendPacket(LifxPacket &pkt, unsigned int device, IPAddress &remote_addr, int remote_port) {
   unsigned int ret;
   ret = sendUDPPacket(pkt, device, remote_addr, remote_port);
+
+  PacketsTX++;
+  BytesTX += ret;
+
   /*
   if(Client.connected()) {
     sendTCPPacket(pkt);

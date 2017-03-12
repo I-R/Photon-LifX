@@ -78,6 +78,9 @@ const byte SERVICE_TCP = 0x02;
 const byte GET_SERVICE = 0x02;
 const byte STATE_SERVICE = 0x03;
 
+const byte GET_WIFI_INFO = 0x10;
+const byte STATE_WIFI_INFO = 0x11;
+
 const byte GET_WIFI_FIRMWARE_STATE = 0x12;
 const byte WIFI_FIRMWARE_STATE = 0x13;
 
@@ -113,6 +116,10 @@ const byte STATE_LOCATION = 0x32;
 const byte GET_GROUP = 0x33;
 const byte STATE_GROUP = 0x35;
 
+const byte GET_LIGHT_POWER = 0x74;
+const byte SET_LIGHT_POWER = 0x75;
+const byte STATE_LIGHT_POWER = 0x76;
+
 const byte BULB_ACK = 0x2d;
 
 #define EEPROM_BULB_LABEL_START 0 // 32 bytes long
@@ -121,7 +128,7 @@ const byte BULB_ACK = 0x2d;
 // future data for EEPROM will start at 72...
 #define EEPROM_BULB_CONFIG 72 // One config Block takes 72 Bytes
 
-#define EEPROM_CONFIG "PL1" // 3 byte identifier for this sketch's EEPROM settings
+#define EEPROM_CONFIG "PL2" // 3 byte identifier for this sketch's EEPROM settings
 #define EEPROM_CONFIG_START 253 // store EEPROM_CONFIG at the end of EEPROM
 
 // helpers
