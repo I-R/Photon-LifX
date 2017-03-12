@@ -28,17 +28,20 @@
 #include "RGBMoodLifx/color.h"
 #include "PWMServoDriver/Adafruit_PWMServoDriver.h"
 
-// set devive
-// ALPHA: Dual Bulb
-// BETA:  Single Bulb
+//****************
+//General Settings
+//****************
 
+// set DEVICE_ID
 #define DEVICE_ID 1
-// Alpha : 1
-// Beta: 2
+// Alpha : 1 - Dual Bulb
+// Beta: 2   - Single Bulb
 // Test: 9
 
-// set to 1 to output debug messages (including packet dumps) to serial (38400 baud)
+// set Debug Output
 const boolean DEBUG = 1;
+// set to 1 to output debug messages (including packet dumps) to serial (38400 baud)
+// set to 0 to disable debug messages
 
 
 // Function declaration
@@ -59,21 +62,25 @@ int BlinkLights(String cmd);
 Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 
 
-#if DEVICE_ID == 1
 
 //*************************
 //* Settings for dual Lamp
 //*************************
-// Number of Bulbs presented by this sketch
+
+#if DEVICE_ID == 1 // Alpha - dual Lamp
+
+// Device Name
 const char DeviceName[] = "Alpha";
 
+// Number of Bulbs presented by this sketch
 const unsigned int LifxBulbNum = 2;
 
+// Array of bulb types; length is defined by number of bulbs as defined in LifxBulbNum
+const unsigned int LifxBulbType[LifxBulbNum]={3, 2};
 // bulb type:
 // 1 = white LED
 // 2 = RGB
 // 3 = RGBW
-const unsigned int LifxBulbType[LifxBulbNum]={3, 2};
 
 // Enter a MAC address and IP address for your controller below.
 // The IP address will be dependent on your local network:
@@ -105,18 +112,27 @@ long bri[LifxBulbNum] = {65535,65535};
 long kel[LifxBulbNum] = {2000,2000};
 long dim[LifxBulbNum] = {0,0};
 
-#elif DEVICE_ID == 2
+//end DEVICE_ID == 1 / Alpha
 
+
+#elif DEVICE_ID == 2 // Beta - single Lamp
+
+//**************************
+//* Settings for single Lamp
+//**************************
+
+// Device Name
 const char DeviceName[] = "Beta";
 
 // Number of Bulbs presented by this sketch
 const unsigned int LifxBulbNum = 1;
 
+// Array of bulb types; must be one value for single lamp device
+const unsigned int LifxBulbType[LifxBulbNum]={2};
 // bulb type:
 // 1 = white LED
 // 2 = RGB
 // 3 = RGBW
-const unsigned int LifxBulbType[LifxBulbNum]={2};
 
 // Enter a MAC address and IP address for your controller below.
 // The IP address will be dependent on your local network:
@@ -147,6 +163,9 @@ long sat[LifxBulbNum] = {0};
 long bri[LifxBulbNum] = {65535};
 long kel[LifxBulbNum] = {2000};
 long dim[LifxBulbNum] = {0};
+
+//end of DEVICE_ID == 2 / Beta
+
 
 #elif DEVICE_ID == 9
 
@@ -199,7 +218,9 @@ long sat[LifxBulbNum] = {0,0,0,0};
 long bri[LifxBulbNum] = {65535,65535,65535,65535};
 long kel[LifxBulbNum] = {1000,2000,3000,4000};
 long dim[LifxBulbNum] = {0,0,0,0};
-#endif
+#endif  //DEVICE_ID == 9 / Test
+
+
 
 // Ethernet instances, for UDP broadcasting, and TCP server and Client
 /*EthernetUDP Udp;
@@ -207,7 +228,6 @@ EthernetServer TcpServer = EthernetServer(LifxPort);
 EthernetClient Client;*/
 
 UDP Udp[LifxBulbNum];
-
 
 //LIFXBulb[0](redPin1, greenPin1, bluePin1);
 //LIFXBulb[1](redPin2, greenPin2, bluePin2);
@@ -374,11 +394,18 @@ void setup() {
   Serial.println( DeviceName );
 }
 
+
+//**********
+// main loop
+//**********
+
 void loop() {
   State="loop";
   for(int j = 0; j < LifxBulbNum; j++) {
     LIFXBulb[j].tick();
   }
+
+  
 
   // buffers for receiving and sending data
   byte PacketBuffer[128]; //buffer to hold incoming packet,
